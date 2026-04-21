@@ -1,0 +1,126 @@
+{
+  "type": "FeatureCollection",
+  "name": "Top 10 Most Populous Cities in Washington State",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Seattle",
+        "rank": 1,
+        "population": 749256
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.3321, 47.6062]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Spokane",
+        "rank": 2,
+        "population": 228989
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-117.4260, 47.6588]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tacoma",
+        "rank": 3,
+        "population": 219346
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.4443, 47.2529]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Vancouver",
+        "rank": 4,
+        "population": 190915
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.6615, 45.6387]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bellevue",
+        "rank": 5,
+        "population": 151854
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.2015, 47.6101]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kent",
+        "rank": 6,
+        "population": 136588
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.2348, 47.3809]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Everett",
+        "rank": 7,
+        "population": 112024
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.2021, 47.9790]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Renton",
+        "rank": 8,
+        "population": 106785
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.2115, 47.4829]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Spokane Valley",
+        "rank": 9,
+        "population": 102976
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-117.2394, 47.6732]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kirkland",
+        "rank": 10,
+        "population": 92175
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.2087, 47.6815]
+      }
+    }
+  ]
+}

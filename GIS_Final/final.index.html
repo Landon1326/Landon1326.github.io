@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  ...
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
+  
+  <style>
+    #map { height: 100vh; }
+
+    .wind-arrow { text-align: center; }
+
+    .legend {
+      background:white;
+      padding: 10px;
+      border-radius: 6px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.2);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .legend i {
+      width: 16px;
+      height: 16px;
+      float: left;
+      margin-right: 6px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+
+  <script>
+
+    //create map
+    var map = L.map('map',{
+        center: [47.7511, -120.7401],
+        zoom: 7
+    });
+
+    //base layer
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png').addTo(map);
+
+  // layer variables
+let washingtonLayer;
+let forestLayer;
+let firesLayer;
+let layerControl;
+let citiesLayer;
+let countyLayer;
+
+//dynamic layer control
+function updateLayerControl() {
+  if (layerControl) {
+    map.removeControl(layerControl);
+  }
+
+  let overlays = {};
+
+  if (washingtonLayer) overlays["Washington Tracts"] = washingtonLayer;
+  if (forestLayer) overlays["National Forests"] = forestLayer;
+  if (firesLayer) overlays["Historic Fires"] = firesLayer;
+
+  layerControl = L.control.layers(null, overlays).addTo(map);
+}
+
+function animateWestToEastWind() {
+  const particles = [];
+  const numParticles = 40;
+
+  for (let i = 0; i < numParticles; i++) {
+    let lat = 46 + Math.random() * 4;
+    let lng = -124 + Math.random() * 1;
+
+    const icon = L.divIcon({
+      className: "wind-arrow",
+      html: `<div style="
+        font-size: 16px;
+        color: blue;
+      ">➤</div>`
+    });
+
+    const marker = L.marker([lat, lng], { icon }).addTo(map);
+    particles.push(marker);
+  }
+
+  setInterval(() => {
+    particles.forEach(p => {
+      let pos = p.getLatLng();
+
+      let newLat = pos.lat;
+      let newLng = pos.lng + 0.05; // move east
+
+      // reset when reaching east side
+      if (newLng > -116) {
+        newLng = -124;
+        newLat = 46 + Math.random() * 4;
+      }
+
+      p.setLatLng([newLat, newLng]);
+    });
+  }, 100);
+}
+    
+ function getColor(rank) {
+  rank = Number(rank);
+  if (rank === 1) return "#2ecc71";   // green (low)
+  if (rank === 5) return "#f1c40f";   // yellow (medium)
+  if (rank === 10) return "#e74c3c";  // red (high)
+  return "#95a5a6";                   // gray (no match / missing)
+}
+
+    //load Washington geoJSON
+     fetch("https://Landon1326.github.io/Washington.json")
+    .then(res => res.json())
+    .then(data => {
+      washingtonLayer = L.geoJSON(data, {
+        style: function(feature) {
+          const rank = feature.properties["WildfireSmokeRank"]
+          
+        },
+
+            //  color coded style
+      style: function(feature) {
+        const score = feature.properties["CumulativeSmokeScore"];
+
+        return {
+          color: "black",        // border line
+          weight: 1,
+          fillColor: getColor(score),
+          fillOpacity: 0.6
+        };
+      },
+
+        //popup for tract #, score, and rank
+         onEachFeature: function(feature, layer) {
+        const props = feature.properties;
+
+        layer.bindPopup(
+          "<strong>Census Tract:</strong> " + (props["CensusTract2020"] || "N/A") + "<br>" +
+          "<strong>Smoke Score:</strong> " + (props["CumulativeSmokeScore"] || "N/A") + "<br>" +
+          "<strong>Rank:</strong> " + (props["WildfireSmokeRank"] || "N/A")
+        );
+
+        // Hover 
+        layer.on({
+          mouseover: function(e) {
+            e.target.setStyle({
+              weight: 3,
+              color: "#000",
+              fillOpacity: 0.8
+            });
+          },
+          mouseout: function(e) {
+            washingtonLayer.resetStyle(e.target);
+          }
+        });
+      }
+
+    }).addTo(map);
+
+    updateLayerControl();
+  });
+
+    //fetch forest geoJSON
+    fetch("https://landon1326.github.io/FS_National_Forests_Dataset_(US_Forest_Service_Proclaimed_Forests).geojson")
+  .then(res => res.json())
+  .then(data => {
+    forestLayer = L.geoJSON(data, {
+      style: {
+        color: "green",
+        fillOpacity: 0.3
+      },
+
+      //popup for forest layer
+      onEachFeature: function(feature, layer) {
+        const name = feature.properties.FORESTNAME || "National Forest";
+
+        layer.bindPopup("<strong>Forest Name:</strong> " + name);
+
+        //tree hover
+        layer.on({
+          mouseover: function(e) {
+            e.target.setStyle({
+              color: "#00ff00",
+              weight: 3,
+              fillOpacity: 0.6
+            });
+          },
+          mouseout: function(e) {
+            forestLayer.resetStyle(e.target);
+          }
+        });
+      }
+
+    });
+
+    updateLayerControl();
+  });
+
+ fetch("https://Landon1326.github.io/GIS_Final/Washington_Large_Fires_1973-2022.json")
+  .then(res => res.json())
+  .then(data => {
+    firesLayer = L.geoJSON(data, {
+      style: {
+        color: "orange",
+        weight: 1,
+        fillOpacity: 0.4
+      },
+
+       onEachFeature: function(feature, layer) {
+        const props = feature.properties;
+
+        layer.bindPopup(
+          "<strong>Fire:</strong> " + (props["FIRENAME"] || "Unknown") + "<br>" +
+          "<strong>Year:</strong> " + (props["YEAR"] || "N/A") + "<br>" +
+          "<strong>Acres:</strong> " + (props["ACRES"] || "N/A") + "<br>" + 
+          "<strong>Cause:</strong>" + (props["CAUSE"] || "Unknown")
+        );
+
+        //fire hover
+        layer.on({
+          mouseover: function(e) {
+            e.target.setStyle({
+              color: "#ff0000",
+              weight: 3,
+              fillOpacity: 0.7
+            });
+          },
+          mouseout: function(e) {
+            firesLayer.resetStyle(e.target);
+          }
+        });
+      }
+
+    });
+
+    updateLayerControl();
+  });
+
+fetch("https://Landon1326.github.io/GIS_Final/washington_top10_cities.geojson")
+  .then(res => res.json())
+  .then(data => {
+    citiesLayer = L.geoJSON(data, {
+
+      pointToLayer: function(feature, latlng) {
+        return L.circleMarker(latlng, {
+          radius: 6,
+          fillColor: "purple",
+          color: "black",
+          weight: 1,
+          fillOpacity: 0.8
+        });
+      },
+
+      onEachFeature: function(feature, layer) {
+        const p = feature.properties;
+
+        layer.bindPopup(
+          "<strong>City:</strong> " + (p["name"] || "Unknown") + "<br>" +
+          "<strong>Population:</strong> " + (p["population"] || "N/A")
+        );
+
+        layer.on({
+          mouseover: e => e.target.setStyle({radius: 8}),
+          mouseout: e => citiesLayer.resetStyle(e.target)
+        });
+      }
+
+    }).addTo(map);
+
+    updateLayerControl();
+  });
+
+fetch("https://Landon1326.github.io/GIS_Final/county_data.geojson")
+  .then(res => res.json())
+  .then(data => {
+    countyLayer = L.geoJSON(data, {
+
+      style: {
+        color: "purple",
+        weight: 1,
+        fillOpacity: 0.2
+      },
+
+      onEachFeature: function(feature, layer) {
+        const props = feature.properties;
+
+        //See if you can figure out issue; if not (limitation)
+        const county = props["COUNTY"] || props["NAME"] || "Unknown County";
+        const value = props["VALUE"] || "N/A";
+
+        layer.bindPopup(
+  "<strong>County:</strong> " + (p["County"] || "Unknown") + "<br>" +
+  "<strong>Total Population:</strong> " + (p["Total_Pop"] || "N/A") + "<br>" +
+  "<strong>% Under 18 / Over 65:</strong> " + (p["Age_perc"] || "N/A") + "<br>" +
+  "<strong>% White:</strong> " + (p["White"] || "N/A") + "<br>" +
+  "<strong>% Black:</strong> " + (p["Black"] || "N/A") + "<br>" +
+  "<strong>% Asian:</strong> " + (p["Asian"] || "N/A") + "<br>" +
+  "<strong>% Hispanic:</strong> " + (p["Hispanic"] || "N/A")
+);
+
+        //hover effect
+        layer.on({
+          mouseover: function(e) {
+            e.target.setStyle({
+              weight: 3,
+              color: "#800080",
+              fillOpacity: 0.4
+            });
+          },
+          mouseout: function(e) {
+            countyLayer.resetStyle(e.target);
+          }
+        });
+      }
+
+    }); 
+
+    updateLayerControl();
+  });
+
+  // Central Park, Washington (approx. location near Aberdeen)
+const centralPark = [46.9720, -123.7035];
+
+// 10 miles in meters
+const radius = 10 * 1609.34;
+
+const circle = L.circle(centralPark, {
+  radius: radius,
+  color: "red",
+  fillColor: "#f03",
+  fillOpacity: 0.2
+}).addTo(map);
+
+// add popup
+circle.bindPopup(`
+  <strong>Central Park, WA</strong><br>
+  10-mile radius buffer zone | Area of best suitability
+`);
+
+circle.on("click", function () {
+  this.openPopup();
+});
+
+animateWestToEastWind();
+
+
+//dynamic legend
+var legend = L.control({ position: "bottomright" });
+
+let activeLayers = {
+  tracts: true,   // default ON
+  forests: false,
+  fires: false,
+  cities: false
+};
+
+legend.onAdd = function () {
+  this._div = L.DomUtil.create("div", "info legend");
+  this.update();
+  return this._div;
+};
+
+legend.update = function () {
+  let html = `<h4>Map Legend</h4>`;
+
+  //Smoke layer
+  if (activeLayers.tracts) {
+    html += `
+      <b>Smoke Rank</b><br>
+      <i style="background:#2ecc71"></i> Low (1)<br>
+      <i style="background:#f1c40f"></i> Medium (5)<br>
+      <i style="background:#e74c3c"></i> High (10)<br><br>
+    `;
+  }
+
+  //Forests (used text characters for squares and circles)
+  if (activeLayers.forests) {
+    html += `<span style="color:green;">■</span> Forests<br>`;
+  }
+
+  //Fires
+  if (activeLayers.fires) {
+    html += `<span style="color:orange;">■</span> Fires<br>`;
+  }
+
+  //Cities
+  if (activeLayers.cities) {
+    html += `<span style="color:purple;">●</span> Cities<br>`;
+  }
+
+  //Wind (always on)
+    html += `
+    <br><b>Wind</b><br>
+    ➤ West → East<br><br>
+  `;
+
+  //Suitability area (buffer)
+  html += `
+    <b>Suitability Area</b><br>
+    <span style="
+      display:inline-block;
+      width:14px;
+      height:14px;
+      border:2px solid red;
+      border-radius:50%;
+      background:rgba(255,0,0,0.2);
+      margin-right:6px;
+    "></span>
+    10-mile buffer (best suitability)
+  `;
+
+  this._div.innerHTML = html;
+};
+
+legend.addTo(map);
+
+
+//Toggle layers
+map.on("overlayadd", function(e) {
+  if (e.layer == forestLayer) activeLayers.forests = true;
+  if (e.layer == firesLayer) activeLayers.fires = true;
+  if (e.layer == citiesLayer) activeLayers.cities = true;
+
+  legend.update();
+});
+
+map.on("overlayremove", function(e) {
+  if (e.layer === forestLayer) activeLayers.forests = false;
+  if (e.layer === firesLayer) activeLayers.fires = false;
+  if (e.layer === citiesLayer) activeLayers.cities = false;
+
+  legend.update();
+});
+
+  </script>
+</body>
+</html>

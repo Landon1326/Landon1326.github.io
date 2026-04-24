@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Douglas County Income Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+    <style>
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+
+        .legend {
+            background: white;
+            padding: 8px;
+            line-height: 18px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+    // Create map
+    var map = L.map('map').setView([41.25, -96.0], 10);
+
+    // Basemap
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png').addTo(map);
+
+    //YOUR FIELD NAME
+    var incomeField = "incomeE";
+
+    // Color scale
+    function getColor(d) {
+        return d > 100000 ? '#084081' :
+               d > 80000  ? '#0868ac' :
+               d > 60000  ? '#2b8cbe' :
+               d > 40000  ? '#4eb3d3' :
+               d > 20000  ? '#7bccc4' :
+                            '#a8ddb5';
+    }
+
+    // Style function
+    function style(feature) {
+        var value = parseFloat(feature.properties[incomeField]) || 0;
+
+        return {
+            fillColor: getColor(value),
+            weight: 1,
+            opacity: 1,
+            color: 'black',
+            fillOpacity: 0.7
+        };
+    }
+
+    // Hover highlight
+    function highlightFeature(e) {
+        var layer = e.target;
+
+        layer.setStyle({
+            weight: 3,
+            color: '#666',
+            fillOpacity: 0.9
+        });
+
+        layer.bringToFront();
+    }
+
+    function resetHighlight(e) {
+        geojson.resetStyle(e.target);
+    }
+
+    // Popup
+    function onEachFeature(feature, layer) {
+        layer.on({
+            mouseover: highlightFeature,
+            mouseout: resetHighlight
+        });
+
+        layer.bindPopup(
+            "<b>Census Tract:</b> " + (feature.properties.NAME || "N/A") +
+            "<br><b>Median Household Income:</b> $" +
+            (feature.properties[incomeField] || 0).toLocaleString()
+        );
+    }
+
+    var geojson;
+
+    // Load GeoJSON
+    fetch('https://Landon1326.github.io/Lab09/Douglas1.geojson')
+        .then(res => res.json())
+        .then(data => {
+
+            console.log("First feature properties:", data.features[0].properties);
+
+            geojson = L.geoJson(data, {
+                style: style,
+                onEachFeature: onEachFeature
+            }).addTo(map);
+
+            map.fitBounds(geojson.getBounds());
+        })
+        .catch(err => console.error("GeoJSON load error:", err));
+
+    // Legend
+    var legend = L.control({position: 'bottomright'});
+
+    legend.onAdd = function () {
+        var div = L.DomUtil.create('div', 'legend'),
+            grades = [0, 20000, 40000, 60000, 80000, 100000];
+
+        for (var i = 0; i < grades.length; i++) {
+            div.innerHTML +=
+                '<i style="background:' + getColor(grades[i] + 1) +
+                '; width:18px; height:18px; display:inline-block;"></i> $' +
+                grades[i].toLocaleString() +
+                (grades[i + 1] ? '&ndash;$' + grades[i + 1].toLocaleString() + '<br>' : '+');
+        }
+
+        return div;
+    };
+
+    legend.addTo(map);
+</script>
+
+</body>
+</html>

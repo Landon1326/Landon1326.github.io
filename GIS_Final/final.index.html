@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  ...
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
+  
+  <style>
+    #map { height: 100vh; }
+
+    .wind-arrow { text-align: center; }
+
+    .legend {
+      background:white;
+      padding: 10px;
+      border-radius: 6px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.2);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .legend i {
+      width: 16px;
+      height: 16px;
+      float: left;
+      margin-right: 6px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+
+  <script>
+
+    //create map
+    var map = L.map('map',{
+        center: [47.7511, -120.7401],
+        zoom: 7
+    });
+
+    //base layer
+    var osmHot = L.tileLayer(
+  'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+  { attribution: '&copy; OpenStreetMap contributors' }
+).addTo(map);
+
+var light = L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  { attribution: '&copy; OpenStreetMap &copy; CARTO' }
+);
+
+  // layer variables
+let washingtonLayer;
+let forestLayer;
+let firesLayer;
+let layerControl;
+let citiesLayer;
+let countyLayer;
+
+//dynamic layer control
+function updateLayerControl() {
+  if (layerControl) {
+    map.removeControl(layerControl);
+  }
+
+  let overlays = {};
+
+  if (washingtonLayer) overlays["Washington Tracts"] = washingtonLayer;
+  if (forestLayer) overlays["National Forests"] = forestLayer;
+  if (firesLayer) overlays["Historic Fires"] = firesLayer;
+
+  let baseMaps = {
+  "OSM Hot": osmHot,
+  "Light Map": light
+};
+
+layerControl = L.control.layers(baseMaps, overlays).addTo(map);
+}
+
+function animateWestToEastWind() {
+  const particles = [];
+  const numParticles = 40;
+
+  for (let i = 0; i < numParticles; i++) {
+    let lat = 46 + Math.random() * 4;
+    let lng = -124 + Math.random() * 1;
+
+    const icon = L.divIcon({
+      className: "wind-arrow",
+      html: `<div style="
+        font-size: 16px;
+        color: blue;
+      ">➤</div>`
+    });
+
+    const marker = L.marker([lat, lng], { icon }).addTo(map);
+    particles.push(marker);
+  }
+
+  setInterval(() => {
+    particles.forEach(p => {
+      let pos = p.getLatLng();
+
+      let newLat = pos.lat;
+      let newLng = pos.lng + 0.05; // move east
+
+      // reset when reaching east side
+      if (newLng > -116) {
+        newLng = -124;
+        newLat = 46 + Math.random() * 4;
+      }
+
+      p.setLatLng([newLat, newLng]);
+    });
+  }, 100);
+}
+    
+ function getColor(rank) {
+  rank = Number(rank);
+  if (rank === 1) return "#2ecc71";   // green (low)
+  if (rank === 5) return "#f1c40f";   // yellow (medium)
+  if (rank === 10) return "#e74c3c";  // red (high)
+  return "#95a5a6";                   // gray (no match / missing)
+}
+
+function getFireColor(year) {
+  year = Number(year);
+
+  if (year >= 2020) return "#7f0000";   // darkest red
+  if (year >= 2010) return "#d7301f";   // dark red
+  if (year >= 2000) return "#fc8d59";   // orange-red
+  if (year >= 1990) return "#fdcc8a";   // light orange
+  return "#fef0d9";                     // oldest fires
+}
+
+    //load Washington geoJSON
+     fetch("https://Landon1326.github.io/Washington.json")
+    .then(res => res.json())
+    .then(data => {
+      washingtonLayer = L.geoJSON(data, {
+        style: function(feature) {
+          const rank = feature.properties["WildfireSmokeRank"]
+          
+        },
+
+            //  color coded style
+      style: function(feature) {
+        const score = feature.properties["CumulativeSmokeScore"];
+
+        return {
+          color: "black",        // border line
+          weight: 0.3,
+          fillColor: getColor(score),
+          fillOpacity: 0.8
+        };
+      },
+
+        //popup for tract #, score, and rank
+         onEachFeature: function(feature, layer) {
+        const props = feature.properties;
+
+        layer.bindPopup(
+          "<strong>Census Tract:</strong> " + (props["CensusTract2020"] || "N/A") + "<br>" +
+          "<strong>Smoke Score:</strong> " + (props["CumulativeSmokeScore"] || "N/A") + "<br>" +
+          "<strong>Rank:</strong> " + (props["WildfireSmokeRank"] || "N/A")
+        );
+
+        // Hover 
+        layer.on({
+          mouseover: function(e) {
+            e.target.setStyle({
+              weight: 3,
+              color: "#000",
+              fillOpacity: 0.8
+            });
+          },
+          mouseout: function(e) {
+            washingtonLayer.resetStyle(e.target);
+          }
+        });
+      }
+
+    }).addTo(map);
+
+    updateLayerControl();
+  });
+
+    //fetch forest geoJSON
+    fetch("https://landon1326.github.io/FS_National_Forests_Dataset_(US_Forest_Service_Proclaimed_Forests).geojson")
+  .then(res => res.json())
+  .then(data => {
+    forestLayer = L.geoJSON(data, {
+      style: {
+        color: "green",
+        fillOpacity: 0.3
+      },
+
+      //popup for forest layer
+      onEachFeature: function(feature, layer) {
+        const name = feature.properties.FORESTNAME || "National Forest";
+
+        layer.bindPopup("<strong>Forest Name:</strong> " + name);
+
+        //tree hover
+        layer.on({
+          mouseover: function(e) {
+            e.target.setStyle({
+              color: "#00ff00",
+              weight: 3,
+              fillOpacity: 0.6
+            });
+          },
+          mouseout: function(e) {
+            forestLayer.resetStyle(e.target);
+          }
+        });
+      }
+
+    });
+
+    updateLayerControl();
+  });
+
+ fetch("https://Landon1326.github.io/GIS_Final/Washington_Large_Fires_1973-2022.json")
+  .then(res => res.json())
+  .then(data => {
+    firesLayer = L.geoJSON(data, {
+  style: function(feature) {
+    const year = feature.properties["YEAR"];
+
+    return {
+      color: getFireColor(year),
+      fillColor: getFireColor(year),
+      weight: 1,
+      fillOpacity: 0.5
+    };
+  },
+
+       onEachFeature: function(feature, layer) {
+        const props = feature.properties;
+
+        layer.bindPopup(
+          "<strong>Fire:</strong> " + (props["FIRENAME"] || "Unknown") + "<br>" +
+          "<strong>Year:</strong> " + (props["YEAR"] || "N/A") + "<br>" +
+          "<strong>Acres:</strong> " + (props["ACRES"] || "N/A") + "<br>" + 
+          "<strong>Cause:</strong>" + (props["CAUSE"] || "Unknown")
+        );
+
+        //fire hover
+        layer.on({
+          mouseover: function(e) {
+  e.target.setStyle({
+    color: "#000",
+    weight: 3,
+    fillOpacity: 0.8
+  });
+},
+          mouseout: function(e) {
+            firesLayer.resetStyle(e.target);
+          }
+        });
+      }
+
+    });
+
+    updateLayerControl();
+  });
+
+fetch("https://Landon1326.github.io/GIS_Final/washington_top10_cities.geojson")
+  .then(res => res.json())
+  .then(data => {
+    citiesLayer = L.geoJSON(data, {
+
+      pointToLayer: function(feature, latlng) {
+        return L.circleMarker(latlng, {
+          radius: 6,
+          fillColor: "purple",
+          color: "black",
+          weight: 1,
+          fillOpacity: 0.8
+        });
+      },
+
+      onEachFeature: function(feature, layer) {
+        const p = feature.properties;
+
+        layer.bindPopup(
+          "<strong>City:</strong> " + (p["name"] || "Unknown") + "<br>" +
+          "<strong>Population:</strong> " + (p["population"] || "N/A")
+        );
+
+        layer.on({
+          mouseover: e => e.target.setStyle({radius: 8}),
+          mouseout: e => citiesLayer.resetStyle(e.target)
+        });
+      }
+
+    }).addTo(map);
+
+    updateLayerControl();
+  });
+
+fetch("https://Landon1326.github.io/GIS_Final/county_data.geojson")
+  .then(res => res.json())
+  .then(data => {
+    countyLayer = L.geoJSON(data, {
+
+      style: {
+        color: "purple",
+        weight: 1,
+        fillOpacity: 0.2
+      },
+
+      onEachFeature: function(feature, layer) {
+        const props = feature.properties;
+
+        //See if you can figure out issue; if not (limitation)
+        const county = props["COUNTY"] || props["NAME"] || "Unknown County";
+        const value = props["VALUE"] || "N/A";
+
+        layer.bindPopup(
+  "<strong>County:</strong> " + (p["County"] || "Unknown") + "<br>" +
+  "<strong>Total Population:</strong> " + (p["Total_Pop"] || "N/A") + "<br>" +
+  "<strong>% Under 18 / Over 65:</strong> " + (p["Age_perc"] || "N/A") + "<br>" +
+  "<strong>% White:</strong> " + (p["White"] || "N/A") + "<br>" +
+  "<strong>% Black:</strong> " + (p["Black"] || "N/A") + "<br>" +
+  "<strong>% Asian:</strong> " + (p["Asian"] || "N/A") + "<br>" +
+  "<strong>% Hispanic:</strong> " + (p["Hispanic"] || "N/A")
+);
+
+        //hover effect
+        layer.on({
+          mouseover: function(e) {
+            e.target.setStyle({
+              weight: 3,
+              color: "#800080",
+              fillOpacity: 0.4
+            });
+          },
+          mouseout: function(e) {
+            countyLayer.resetStyle(e.target);
+          }
+        });
+      }
+
+    }); 
+
+    updateLayerControl();
+  });
+
+  // Central Park, Washington (approx. location near Aberdeen)
+const centralPark = [46.9720, -123.7035];
+
+// 10 miles in meters
+const radius = 10 * 1609.34;
+
+const circle = L.circle(centralPark, {
+  radius: radius,
+  color: "red",
+  fillColor: "#f03",
+  fillOpacity: 0.2
+}).addTo(map);
+
+// add popup
+circle.bindPopup(`
+  <strong>Central Park, WA</strong><br>
+  10-mile radius buffer zone | Area of best suitability
+`);
+
+circle.on("click", function () {
+  this.openPopup();
+});
+
+
+
+
+// ----------------------
+// DYNAMIC LEGEND
+// ----------------------
+var legend = L.control({ position: "bottomright" });
+
+let activeLayers = {
+  tracts: true,   // Washington tracts are on by default
+  forests: false,
+  fires: false,
+  cities: true
+};
+
+legend.onAdd = function () {
+  this._div = L.DomUtil.create("div", "info legend");
+  this.update();
+  return this._div;
+};
+
+legend.update = function () {
+  let html = `<h4>Wildfire Smoke Suitability Analysis</h4>`;
+
+  // Smoke Layer
+  if (activeLayers.tracts) {
+    html += `
+      <b>Smoke Exposure Ranking</b><br>
+      Census tracts classified by cumulative smoke score:<br>
+      <i style="background:#2ecc71"></i> Low Exposure (Rank 1)<br>
+      <i style="background:#f1c40f"></i> Moderate Exposure (Rank 5)<br>
+      <i style="background:#e74c3c"></i> High Exposure (Rank 10)<br><br>
+    `;
+  }
+
+  // Reference Layers
+  html += `<b>Reference Layers</b><br>`;
+
+  if (activeLayers.forests) {
+    html += `
+      <span style="color:green;">■</span>
+      National Forest Boundaries<br><br>
+    `;
+  }
+
+  if (activeLayers.fires) {
+  html += `
+    <span style="color:orange;">■</span>
+    Historic Fire Perimeters (1973–2023)<br>
+
+    <i style="background:#fef0d9"></i> 1970s–1980s<br>
+    <i style="background:#fdcc8a"></i> 1990s<br>
+    <i style="background:#fc8d59"></i> 2000s<br>
+    <i style="background:#d7301f"></i> 2010s<br>
+    <i style="background:#7f0000"></i> 2020s<br><br>
+  `;
+}
+
+  if (activeLayers.cities) {
+    html += `
+      <span style="color:purple;">●</span>
+      Top 10 Washington Cities<br>
+    `;
+  }
+
+  
+  // Suitability Area
+  html += `
+    <b>Analysis Result</b><br>
+    <span style="
+      display:inline-block;
+      width:14px;
+      height:14px;
+      border:2px solid red;
+      border-radius:50%;
+      background:rgba(255,0,0,0.2);
+      margin-right:6px;
+    "></span>
+    Area of Best Suitability<br>
+    (10-mile buffer around Central Park, WA)
+  `;
+
+  this._div.innerHTML = html;
+};
+
+legend.addTo(map);
+
+// ----------------------
+// UPDATE LEGEND WHEN LAYERS TOGGLE
+// ----------------------
+map.on("overlayadd", function(e) {
+  if (e.layer === forestLayer) activeLayers.forests = true;
+  if (e.layer === firesLayer) activeLayers.fires = true;
+  if (e.layer === citiesLayer) activeLayers.cities = true;
+
+  legend.update();
+});
+
+map.on("overlayremove", function(e) {
+  if (e.layer === forestLayer) activeLayers.forests = false;
+  if (e.layer === firesLayer) activeLayers.fires = false;
+  if (e.layer === citiesLayer) activeLayers.cities = false;
+
+  legend.update();
+});
+
+legend.addTo(map);
+
+
+//Toggle layers
+map.on("overlayadd", function(e) {
+  if (e.layer == forestLayer) activeLayers.forests = true;
+  if (e.layer == firesLayer) activeLayers.fires = true;
+  if (e.layer == citiesLayer) activeLayers.cities = true;
+
+  legend.update();
+});
+
+map.on("overlayremove", function(e) {
+  if (e.layer === forestLayer) activeLayers.forests = false;
+  if (e.layer === firesLayer) activeLayers.fires = false;
+  if (e.layer === citiesLayer) activeLayers.cities = false;
+
+  legend.update();
+});
+
+// ----------------------
+// MAP MESSAGE / SUMMARY BOX
+// ----------------------
+var infoBox = L.control({ position: "topleft" });
+
+infoBox.onAdd = function () {
+  var div = L.DomUtil.create("div", "legend");
+
+  div.style.width = "220px";
+
+  div.innerHTML = `
+    <h4>Map Purpose</h4>
+
+    Wildfire smoke exposure<br>
+    across Washington State<br>
+    based on cumulative<br>
+    smoke scores by tract.<br><br>
+
+    Layers include:<br>
+    • Historic fires<br>
+    • National forests<br>
+    • Major cities and populations<br><br>
+
+
+    ⭕ Red buffer shows<br>
+    the most suitable area<br>
+    near <b>Central Park, WA</b>.
+  `;
+
+  return div;
+};
+
+infoBox.addTo(map);
+
+var title = L.control({ position: "center" });
+
+title.onAdd = function () {
+  var div = L.DomUtil.create("div", "legend");
+
+  div.style.width = "350px";
+  div.style.textAlign = "center";
+  div.style.fontWeight = "bold";
+  div.style.fontSize = "18px";
+
+  div.innerHTML = `
+    Wildfire Smoke Suitability Analysis<br>
+    in Washington State
+  `;
+
+  return div;
+};
+
+title.addTo(map);
+
+  </script>
+</body>
+</html>
